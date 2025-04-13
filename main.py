@@ -13,6 +13,7 @@ import streamlit as st
 import os
 import tempfile
 from streamlit_extras.buy_me_a_coffee import button
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 #load_dotenv()
 st.title("PDF QA")
@@ -44,18 +45,28 @@ if uploaded_file is not None:
     embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
     db = Chroma.from_documents(texts, embeddings)
 
+    from langchain.callbacks.base import BaseCallbackHandler
+    class StreamHandler(BaseCallbackHandler):
+        def __init__(self, container, initial_text=""):
+            self.container = container
+            self.text = initial_text
+        def on_llm_new_token(self, token: str, **kwargs) -> None:
+            self.text+=token
+            self.container.markdown(self.text)
+    
     st.header("PDF 에게 질문 해보세요")
     question = st.text_input("질문을 입력하세요")
 
     if st.button("질문하기"):
         with st.spinner("질문을 하는 중입니다..."):
-            llm = ChatOpenAI(temperature=0.5, model="gpt-4", openai_api_key=openai_key)
+            chat_box = st.empty()
+            stream_handler = StreamHandler(chat_box)
+            llm = ChatOpenAI(temperature=0.5, model="gpt-4", openai_api_key=openai_key, streaming=True, callbacks=[stream_handler])
             qa_chain = RetrievalQA.from_chain_type(
                 llm=llm,
                 retriever=db.as_retriever(),
             )
-            result = qa_chain({"query": question})
-            st.write(result["result"])
+            qa_chain({"query": question})
 
 button(username="inzin823", floating=True, width=220)
 
