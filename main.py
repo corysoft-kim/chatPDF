@@ -12,10 +12,13 @@ from langchain.chains import RetrievalQA
 import streamlit as st
 import os
 import tempfile
+from streamlit_extras.buy_me_a_coffee import button
 
-load_dotenv()
+#load_dotenv()
 st.title("PDF QA")
 st.write("---")
+
+openai_key = st.text_input("OPEN_AI_API_KEY", type="password")
 
 uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
 st.write("---")
@@ -38,7 +41,7 @@ if uploaded_file is not None:
     )
     texts = text_splitter.split_documents(pages)
 
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
     db = Chroma.from_documents(texts, embeddings)
 
     st.header("PDF 에게 질문 해보세요")
@@ -46,13 +49,16 @@ if uploaded_file is not None:
 
     if st.button("질문하기"):
         with st.spinner("질문을 하는 중입니다..."):
-            llm = ChatOpenAI(temperature=0.5, model="gpt-4")
+            llm = ChatOpenAI(temperature=0.5, model="gpt-4", openai_api_key=openai_key)
             qa_chain = RetrievalQA.from_chain_type(
                 llm=llm,
                 retriever=db.as_retriever(),
             )
             result = qa_chain({"query": question})
             st.write(result["result"])
+
+button(username="inzin823", floating=True, width=220)
+
 
 
     
