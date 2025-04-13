@@ -1,0 +1,62 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
+from dotenv import load_dotenv
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import RetrievalQA
+import streamlit as st
+import os
+import tempfile
+
+load_dotenv()
+st.title("PDF QA")
+st.write("---")
+
+uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
+st.write("---")
+
+def pdf_to_document(uploaded_file):
+    temp_dir = tempfile.TemporaryDirectory()
+    temp_filepath = os.path.join(temp_dir.name, uploaded_file.name)
+    with open(temp_filepath, "wb") as f:
+        f.write(uploaded_file.getvalue())
+    loader = PyPDFLoader(temp_filepath)
+    pages = loader.load_and_split()
+    return pages
+    
+if uploaded_file is not None:
+    pages = pdf_to_document(uploaded_file)
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=300,
+        chunk_overlap=20
+    )
+    texts = text_splitter.split_documents(pages)
+
+    embeddings = OpenAIEmbeddings()
+    db = Chroma.from_documents(texts, embeddings)
+
+    st.header("PDF 에게 질문 해보세요")
+    question = st.text_input("질문을 입력하세요")
+
+    if st.button("질문하기"):
+        with st.spinner("질문을 하는 중입니다..."):
+            llm = ChatOpenAI(temperature=0.5, model="gpt-4")
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                retriever=db.as_retriever(),
+            )
+            result = qa_chain({"query": question})
+            st.write(result["result"])
+
+
+    
+
+
+
+
